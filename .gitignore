@@ -6,14 +6,14 @@ venv/
 # 密钥/环境变量
 .env
 
-# 运行时产物（会话生成的文件）
-.mailboxes/
-.memory/
-.tasks/
-.transcripts/
-.task_outputs/
-.worktrees/
-.scheduled_tasks.json
+# 运行时产物（统一在 .runtime/ 下）
+.runtime/
+
+# 编写提示词（不上传）
+SPLIT_PROMPT.md
+SPLIT_PROMPT_B.md
+TEST_PLAN.md
+README_PROMPT.md
 
 # 外部参考/学习项目（不纳入版本）
 learn-claude-code/
