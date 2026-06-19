@@ -1,0 +1,10 @@
+- [connect-docs-mcp-server](connect-docs-mcp-server.md) — 用户请求连接 docs MCP server
+- [count-functions-per-py-file](count-functions-per-py-file.md) — 用户要求用子Agent统计core/目录下每个.py文件的函数定义数量
+- [create-todo-tasks](create-todo-tasks.md) — 用户要求创建三个有依赖关系的任务：设计用户表、写用户API（依赖任务1）、写用户测试（依赖任务2）
+- [list-python-files-command](list-python-files-command.md) — 用户请求列出当前目录下所有 .py 文件
+- [plan-logging-system-todos](plan-logging-system-todos.md) — 用户要求规划添加日志系统的步骤，仅列出待办事项，不执行操作
+- [reminder-one-time-exercise](reminder-one-time-exercise.md) — 用户设置一次性提醒，一分钟后提醒站起来活动（已执行完毕）
+- [reminder-update-todo-write](reminder-update-todo-write.md) — 提醒触发更新任务列表 (todo_write)
+- [search-docs-agent-loop](search-docs-agent-loop.md) — 用户要求使用 mcp__docs__search 搜索 agent_loop
+- [user-preference-tabs](user-preference-tabs.md) — 用户偏好：查看任务板上的任务列表
+- [wait-30s-check-inbox](wait-30s-check-inbox.md) — 用户要求在流程中等待30秒后检查收件箱

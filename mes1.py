@@ -652,12 +652,13 @@ def run_bash(command: str, run_in_background: bool = False,
     # s18: 可选 cwd 参数，队友在 worktree 下执行时传入 worktree 路径
     try:
         r = subprocess.run(
-            command,            # 要执行的命令，比如"ls -l"、"python test.py"
-            shell=True,         # 允许执行带管道、通配符的复杂命令
-            cwd=cwd or WORKDIR, # s18: 支持在 worktree 目录下执行
-            capture_output=True,# 捕获命令的输出，返回给 AI
-            text=True,          # 输出为字符串格式
-            timeout=120         # 最多跑 120 秒，防止死循环
+            command,
+            shell=True,
+            cwd=cwd or WORKDIR,
+            capture_output=True,
+            text=True,
+            encoding="utf-8", errors="replace",
+            timeout=120
         )
         out = (r.stdout + r.stderr).strip()
         return out[:50000] if out else "（无输出）"
@@ -1575,7 +1576,7 @@ def run_git(args: list[str]) -> tuple[bool, str]:
     """执行 git 命令，返回 (成功?, 输出)。"""
     try:
         r = subprocess.run(["git"] + args, cwd=WORKDIR,
-                           capture_output=True, text=True, timeout=30)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
         out = (r.stdout + r.stderr).strip()
         out = out[:5000] if out else "（无输出）"
         return r.returncode == 0, out
@@ -1623,10 +1624,10 @@ def _count_worktree_changes(path: Path) -> tuple[int, int]:
     """统计 worktree 中未提交文件数和未推送提交数。"""
     try:
         r1 = subprocess.run(["git", "status", "--porcelain"],
-                            cwd=path, capture_output=True, text=True, timeout=10)
+                            cwd=path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
         files = len([l for l in r1.stdout.strip().splitlines() if l.strip()])
         r2 = subprocess.run(["git", "log", "@{push}..HEAD", "--oneline"],
-                            cwd=path, capture_output=True, text=True, timeout=10)
+                            cwd=path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
         commits = len([l for l in r2.stdout.strip().splitlines() if l.strip()])
         return files, commits
     except Exception:
@@ -1925,12 +1926,12 @@ def cancel_job(job_id: str) -> str:
 
 
 def cron_scheduler_loop():
-    """独立 daemon 线程：每秒轮询，时间匹配的 job 塞进 cron_queue。
-    单个 job 异常不影响整个调度线程。"""
+    """独立 daemon 线程：每秒轮询，时间匹配的 job 塞进 cron_queue。"""
     while True:
         time.sleep(1)
         now = datetime.now()
-        minute_marker = now.strftime("%Y-%m-%d %H:%M")  # 日期感知，防止跨天跳过
+        minute_marker = now.strftime("%Y-%m-%d %H:%M")
+        need_save = False
         with cron_lock:
             for job in list(scheduled_jobs.values()):
                 try:
@@ -1943,9 +1944,11 @@ def cron_scheduler_loop():
                         if not job.recurring:
                             scheduled_jobs.pop(job.id, None)
                             if job.durable:
-                                save_durable_jobs()
+                                need_save = True
                 except Exception as e:
                     print(f"  \033[31m[cron 错误] {job.id}: {e}\033[0m")
+        if need_save:
+            save_durable_jobs()
 
 
 def consume_cron_queue() -> list[CronJob]:
