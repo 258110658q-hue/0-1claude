@@ -15,6 +15,9 @@ venv/
 .worktrees/
 .scheduled_tasks.json
 
+# 外部参考/学习项目（不纳入版本）
+learn-claude-code/
+
 # IDE
 .vscode/
 .idea/
