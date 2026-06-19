@@ -247,7 +247,11 @@ def spawn_teammate_thread(name: str, role: str, prompt: str) -> str:
                     response = client.messages.create(
                         model=PRIMARY_MODEL, system=system, messages=messages[-20:],
                         tools=sub_tools, max_tokens=8000)
-                except Exception:
+                except Exception as e:
+                    safe_print(f"  \033[31m[队友错误] {name}: {type(e).__name__}: {e}\033[0m")
+                    BUS.send(name, "lead",
+                             f"[错误] API 调用失败: {type(e).__name__}", "message")
+                    should_shutdown = True
                     break
                 messages.append({"role": "assistant", "content": response.content})
 

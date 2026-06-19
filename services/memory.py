@@ -212,8 +212,8 @@ def extract_memories(messages: list):
                 count += 1
         if count:
             safe_print(f"\n\033[33m[记忆: 提取了 {count} 条新记忆]\033[0m")
-    except Exception:
-        pass
+    except Exception as e:
+        safe_print(f"\n\033[33m[记忆: 提取失败] {type(e).__name__}: {e}\033[0m")
 def consolidate_memories():
     """记忆文件数达到阈值时，让 LLM 去重合并、删除过时记忆。"""
     files = list_memory_files()
@@ -261,5 +261,5 @@ def consolidate_memories():
                 write_memory_file(name, mem_type, desc, body)
 
         safe_print(f"\n\033[33m[记忆: 整理 {len(files)} → {len(items)} 条]\033[0m")
-    except Exception:
-        pass
+    except Exception as e:
+        safe_print(f"\n\033[33m[记忆: 整理失败] {type(e).__name__}: {e}\033[0m")
