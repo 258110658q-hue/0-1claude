@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# 密钥/环境变量
+.env
+
+# 运行时产物（会话生成的文件）
+.mailboxes/
+.memory/
+.tasks/
+.transcripts/
+.task_outputs/
+.worktrees/
+.scheduled_tasks.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
