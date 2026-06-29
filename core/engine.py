@@ -60,14 +60,8 @@ def agent_loop(messages: list, context: dict):
     state = RecoveryState()
     max_tokens = DEFAULT_MAX_TOKENS
 
-    # s09: 加载记忆 + 找注入位置
+    # s09: 加载记忆（只做一次，内容不变）
     memories_content = load_memories(messages)
-    memory_turn = None
-    for i in range(len(messages) - 1, -1, -1):
-        if (messages[i].get("role") == "user"
-                and isinstance(messages[i].get("content"), str)):
-            memory_turn = i
-            break
 
     while True:
         # s14: 注入已触发的 cron 任务
@@ -96,16 +90,19 @@ def agent_loop(messages: list, context: dict):
         context = update_context(context, messages)
         tools, handlers = assemble_tool_pool()
 
-        # s09: 记忆拼接到当前用户消息前面
+        # s09: 记忆拼接到最新一条纯文本 user 消息前面
+        #       每轮重算 memory_turn — prepare_context 可能重组消息列表
         request_messages = messages
-        if memories_content and memory_turn is not None and memory_turn < len(messages):
-            msg_content = messages[memory_turn].get("content", "")
-            if isinstance(msg_content, str):  # 压缩后可能变成 list，跳过
-                request_messages = messages.copy()
-                request_messages[memory_turn] = {
-                    **messages[memory_turn],
-                    "content": memories_content + "\n\n" + msg_content,
-                }
+        if memories_content:
+            for i in range(len(messages) - 1, -1, -1):
+                if (messages[i].get("role") == "user"
+                        and isinstance(messages[i].get("content"), str)):
+                    request_messages = messages.copy()
+                    request_messages[i] = {
+                        **messages[i],
+                        "content": memories_content + "\n\n" + messages[i]["content"],
+                    }
+                    break
 
         # ── LLM 调用 + 错误恢复 ──
         try:
