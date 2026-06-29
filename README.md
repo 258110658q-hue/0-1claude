@@ -542,6 +542,182 @@ if response.stop_reason == "max_tokens":
 
 ---
 
+## 附录 B：Agent 系统设计文档
+
+### B.1 Agent 基本概念
+
+本项目是一个完整的 **AI Agent 系统**——在 LLM 基础上构建了可执行、可检索、可调用工具、可管理上下文的 AI 应用。它与 Chatbot 和 Workflow 的区别：
+
+| 类型 | 特点 | 本项目对应 |
+|------|------|----------|
+| **Chatbot** | 偏对话，一问一答 | `agent_loop` 的 `stop_reason != tool_use` 分支——模型直接回复文本 |
+| **Workflow** | 偏确定流程，按预设步骤执行 | `todo_write` + task graph 的 `blockedBy` 依赖链 |
+| **Agent** | 偏动态决策和工具调用 | `agent_loop` 的 `has_tool_use` 分支——模型自主决定调用哪些工具、多少次 |
+
+核心能力矩阵：
+
+| 能力 | 本项目实现 | 对应模块 |
+|------|----------|---------|
+| Prompt 工程 | 分段拼装、动态注入、记忆侧查询 | `core/prompt.py` |
+| RAG | 持久记忆文件 + LLM 语义选择 + 关键词降级 | `services/memory.py` |
+| 工具调用 | 27 个内置工具 + MCP 动态扩展，JSON Schema 定义 | `tools/builtin.py`、`tools/mcp.py` |
+| Workflow | 任务图 + blockedBy 依赖 + 自动解锁下游 | `services/tasks.py` |
+| 状态管理 | 会话历史、任务进度、记忆索引、cron 持久化 | `services/cron.py`、`app.py` |
+| 记忆 | 短期（当前对话）+ 长期（.memory/*.md 持久化）+ 定期整理 | `services/memory.py` |
+| 评估 | 194 个单元测试，覆盖全部纯函数 | `tests/` |
+| 安全 | 三级权限管道 + 钩子系统 + 沙箱路径约束 | `runtime/hooks.py` |
+
+### B.2 Agent 核心循环
+
+```
+while True:
+    ┌──────────────────────────────────────────────────────┐
+    │ 1. 注入: cron 定时任务 + 后台任务通知 + nag 提醒    │
+    │ 2. 压缩: budget→snip→micro→compact（四层管线）      │
+    │ 3. 组装: System Prompt + 记忆 + 技能 + MCP 状态      │
+    │ 4. 调用: LLM (tools=动态工具池, max_tokens, 重试)   │
+    │ 5. 恢复: max_tokens 升级 / prompt_too_long 应急      │
+    │    ┌─────────────────────────────────────────────┐   │
+    │    │ has_tool_use?                                │   │
+    │    │  ├─ Yes → PreToolUse hooks → 执行工具        │   │
+    │    │  │   ├─ compact? → 摘要压缩 → 注入结果       │   │
+    │    │  │   ├─ 后台任务? → daemon 线程 → 占位符     │   │
+    │    │  │   └─ 同步? → 调 handler → tool_result     │   │
+    │    │  │   └─ connect_mcp? → 重建工具池            │   │
+    │    │  └─ No  → Stop hooks → 提取记忆 → 返回       │   │
+    │    └─────────────────────────────────────────────┘   │
+    │ 6. 追加: tool_result + 后台通知 → messages          │
+    └──────────────────────────────────────────────────────┘
+```
+
+模型根据用户目标、上下文和工具结果持续推进任务，直到 `has_tool_use` 返回 False。
+
+### B.3 工具调用设计
+
+#### 工具定义（JSON Schema）
+
+每个工具通过标准 JSON Schema 声明其接口，LLM 据此决定何时调用、传什么参数：
+
+```python
+# 示例：create_task 工具定义
+{"name": "create_task",
+ "description": "创建新任务。可指定 blockedBy 声明依赖。",
+ "input_schema": {"type": "object",
+                  "properties": {"subject": {"type": "string"},
+                                 "description": {"type": "string"},
+                                 "blockedBy": {"type": "array",
+                                               "items": {"type": "string"}}},
+                  "required": ["subject"]}}
+```
+
+#### 工具执行与错误处理
+
+| 环节 | 处理方式 |
+|------|---------|
+| 工具选择 | LLM 根据 Schema 自主决策，无需枚举路由规则 |
+| 参数校验 | `_normalize_todos` 校验格式/字段/枚举值，`schedule_job` 拒绝非法 cron |
+| 执行超时 | `run_bash` 默认 120s 超时，`subprocess.TimeoutExpired` 返回错误消息 |
+| 执行错误 | `call_tool_handler` 捕获 `TypeError`（参数不匹配）返回错误消息而非崩溃 |
+| 结果截断 | `run_bash` 截断到 50000 字符，避免撑爆上下文 |
+| 后台执行 | 慢操作（install/build）自动识别，daemon 线程异步执行，主循环不阻塞 |
+| MCP 工具错误 | `MCPClient.call_tool` 捕获 handler 异常，返回 `MCP error: {e}` |
+
+### B.4 Workflow 模式
+
+本项目中内置了多种 Workflow 模式：
+
+| 模式 | 说明 | 项目实现 |
+|------|------|---------|
+| **Prompt Chaining** | 一个 LLM 的输出作为下一个的输入 | 子 Agent→主 Agent 的结论回传 |
+| **Routing** | 根据输入分类路由到不同处理器 | `BUILTIN_HANDLERS` 按工具名分发 handler |
+| **Parallelization** | 多个任务并行执行 | 队友 daemon 线程并行工作 |
+| **Orchestrator-Workers** | 一个主控分配任务给多个 worker | Lead 创建任务→spawn 队友→队友自动认领执行 |
+| **Evaluator-Optimizer** | 评估输出质量并迭代改进 | 计划审批门控：队友提交计划→Lead 审批→队友执行 |
+
+**核心设计原则**：可控流程优先于盲目 Agent 化。`todo_write` 和 task graph 提供了明确的任务拆分和执行约束，让 Agent 行为可预测、可审计。
+
+### B.5 状态管理
+
+| 状态类型 | 存储方式 | 生命周期 | 对应模块 |
+|---------|---------|---------|---------|
+| **会话历史** | 内存 `session_history: list` | 单次会话 | `app.py` |
+| **任务进度** | 文件 `.runtime/tasks/task_*.json` | 跨会话持久化 | `services/tasks.py` |
+| **记忆索引** | 文件 `.runtime/memory/MEMORY.md` | 跨会话持久化 | `services/memory.py` |
+| **cron 定时** | 文件 `.runtime/scheduled_tasks.json` | 跨会话持久化 | `services/cron.py` |
+| **当前 todos** | 内存 `CURRENT_TODOS: list` | 单次会话 | `core/utils.py` |
+| **队友消息** | 文件 `.runtime/mailboxes/*.jsonl` | 消费式（读后即删） | `runtime/bus.py` |
+| **worktree 事件** | 文件 `.runtime/worktrees/events.jsonl` | 跨会话 | `runtime/worktree.py` |
+| **压缩存档** | 文件 `.runtime/transcripts/*.jsonl` | 跨会话 | `core/compression.py` |
+| **协议状态** | 内存 `pending_requests: dict` | 单次会话 | `runtime/protocol.py` |
+
+**设计理念**：关键状态（任务、记忆、cron）文件持久化，避免 Agent 变成不可复盘的黑盒。运行时可丢弃的状态（会话历史、协议请求）保留在内存中。
+
+### B.6 记忆系统
+
+遵循记忆和上下文的区分——上下文是当前对话窗口内的内容，记忆是跨会话保留的知识。
+
+| 记忆类型 | 实现 | 说明 |
+|---------|------|------|
+| **短期记忆** | `messages[-20:]`（当前对话窗口） | LLM 直接看到的最近 20 条消息 |
+| **长期记忆** | `.memory/*.md` 文件存储 | 跨会话持久化，YAML frontmatter 元数据 |
+| **语义记忆** | LLM 侧查询根据对话内容选择相关记忆 | `select_relevant_memories()` |
+| **记忆提取** | 每轮结束后 LLM 自动从对话中提取 | `extract_memories()` |
+| **记忆压缩** | 文件数 ≥10 时触发 LLM 去重合并 | `consolidate_memories()` |
+| **遗忘机制** | 整理时删除过时/被覆盖的记忆 | `consolidate_memories()` 的合并+删除规则 |
+
+### B.7 上下文工程
+
+控制模型在有限窗口内获得正确信息：
+
+| 技术 | 实现 | API 消耗 |
+|------|------|---------|
+| **上下文预算** | `tool_result_budget`：单条结果 >30000 字符时落盘，上下文只留预览 | 0 |
+| **上下文裁剪** | `snip_compact`：保留首尾消息，裁掉中间，不拆散 tool_use/tool_result 对 | 0 |
+| **旧结果占位** | `micro_compact`：只保留最近 3 条完整 tool_result，更旧的替换为占位符 | 0 |
+| **LLM 摘要** | `compact_history`：上下文仍超限时调用 LLM 生成摘要 | 1 |
+| **应急压缩** | `reactive_compact`：API 报 prompt_too_long 时比 compact_history 更激进 | 1 |
+| **动态注入** | 记忆/技能/MCP 状态根据运行时 context 按需拼入 System Prompt | 0 |
+
+### B.8 Agent 安全
+
+| 安全机制 | 实现 | 对应 OWASP 建议 |
+|---------|------|---------------|
+| **Prompt Injection 防御** | `safe_path` 拒绝 `../` 路径遍历；`validate_worktree_name` 白名单校验 | 输入校验 |
+| **工具越权防护** | `DENY_LIST`（`rm -rf /`、`sudo`、`mkfs`）直接拒绝；`DESTRUCTIVE`（`rm`、`chmod 777`）需用户确认 | 工具权限控制 |
+| **沙箱执行** | `safe_path` 强制所有文件操作在 WORKDIR 内 | 路径沙箱 |
+| **敏感操作确认** | MCP 部署工具（`mcp__deploy__*`）弹窗要求用户确认 | 二次确认 |
+| **外部内容不可信** | MCP 工具返回内容仅作为 tool_result 注入，不直接执行 | 输入隔离 |
+| **关键操作审批** | 计划审批门控：队友 `submit_plan` 后暂停，等 Lead `review_plan` 批准才继续 | Human-in-the-Loop |
+
+### B.9 Agent 评估
+
+| 指标 | 本项目现状 |
+|------|----------|
+| **任务完成率** | 194 个单元测试全部通过，覆盖全部纯函数逻辑 |
+| **工具调用准确率** | `call_tool_handler` 的错误路径已测试（handler 不存在/参数不匹配） |
+| **步骤合理性** | `todo_write` + task graph 提供明确任务链，`blockedBy` 强制顺序约束 |
+| **失败恢复** | 三路径错误恢复：max_tokens 升级→续写、prompt_too_long 应急压缩、429/529 指数退避+模型切换 |
+| **多轮稳定性** | 上下文压缩管线确保超长对话不溢出窗口 |
+
+### B.10 参考资源
+
+本项目设计参考了以下业界实践：
+
+- **Agent 核心循环**: [Claude Code Agent SDK - Agent Loop](https://code.claude.com/docs/en/agent-sdk/agent-loop)
+- **工具调用设计**: [OpenAI Function Calling](https://platform.openai.com/docs/guides/function-calling)
+- **Workflow 模式**: [Building Effective Agents (Anthropic)](https://www.anthropic.com/engineering/building-effective-agents)
+- **规划与任务拆解**: [LLM Powered Autonomous Agents (Lilian Weng)](https://lilianweng.github.io/posts/2023-06-23-agent/)
+- **记忆系统**: [IBM - AI Agent Memory](https://www.ibm.com/think/topics/ai-agent-memory)
+- **上下文工程**: [Effective Context Engineering (Anthropic)](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
+- **MCP**: [Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro)
+- **Human-in-the-Loop**: [LangGraph Human-in-the-Loop](https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/)
+- **状态持久化**: [Durable Execution for AI Agents](https://www.inngest.com/blog/durable-execution-key-to-harnessing-ai-agents)
+- **Agent 安全**: [OWASP LLM Prompt Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html)
+- **评估**: [Langfuse Evaluation](https://langfuse.com/docs/evaluation/overview)
+- **源码参考**: [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code)
+
+---
+
 ## 许可证
 
 [MIT](LICENSE)
