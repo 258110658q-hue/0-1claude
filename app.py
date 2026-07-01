@@ -3,7 +3,8 @@
 s20 Comprehensive Agent — 入口
 将所有模块组装在一起，启动交互式对话循环。
 """
-import threading
+import sys, os, threading
+from pathlib import Path
 from config import *
 from core.utils import *
 from core.prompt import *
@@ -29,7 +30,63 @@ from runtime.worktree import *
 init_builtin_handlers()
 init_sub_handlers()
 
+
+def startup_check():
+    """启动前自检，失败时给出明确的修复提示。"""
+    errors = []
+
+    env_file = Path(__file__).resolve().parent / ".env"
+    if not env_file.exists():
+        errors.append(
+            "未找到 .env 文件\n"
+            "  解决: cp .env.example .env\n"
+            "  然后编辑 .env 填入你的 API Key 和 MODEL_ID"
+        )
+    else:
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            errors.append(
+                "ANTHROPIC_API_KEY 未设置\n"
+                "  解决: 编辑 .env 文件，设置 ANTHROPIC_API_KEY=你的密钥"
+            )
+        if not os.getenv("MODEL_ID"):
+            errors.append(
+                "MODEL_ID 未设置\n"
+                "  解决: 编辑 .env 文件，设置 MODEL_ID=claude-sonnet-4-6"
+            )
+
+    if errors:
+        print("\n[自检失败] 以下问题需要修复:\n")
+        for i, e in enumerate(errors, 1):
+            print(f"  {i}. {e}\n")
+        return False
+
+    print("[自检通过] .env 配置正确")
+    return True
+
+
 if __name__ == "__main__":
+    # ── 命令行模式 ──
+
+    if "--check" in sys.argv:
+        ok = startup_check()
+        if ok:
+            print(f"  WORKDIR: {WORKDIR}")
+            print(f"  MODEL_ID: {os.getenv('MODEL_ID')}")
+            print(f"  技能数: {len(SKILL_REGISTRY)}")
+            from tools.builtin import BUILTIN_HANDLERS
+            print(f"  内置工具: {len(BUILTIN_HANDLERS)}")
+            print(f"  测试命令: python -m pytest tests/ -v")
+        sys.exit(0 if ok else 1)
+
+    if "--test" in sys.argv:
+        import pytest
+        sys.exit(pytest.main(["tests/", "-v"]))
+
+    # ── 正常启动 ──
+
+    if not startup_check():
+        sys.exit(1)
+
     print("s20: Comprehensive Agent — 机制很多，循环一个")
     print("输入问题，回车发送。输入 q 退出。使用 schedule_cron 设置定时任务。\n")
 
