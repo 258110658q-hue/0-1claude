@@ -68,7 +68,7 @@ def spawn_teammate_thread(name: str, role: str, prompt: str) -> str:
     """在后台 daemon 线程里启动自治队友 Agent。"""
     from services.tasks import list_tasks, claim_task, load_task, complete_task  # 延迟导入
     from runtime.protocol import ProtocolState, pending_requests, new_request_id
-    from core.utils import run_bash, run_read, run_write
+    from core.utils import run_bash, run_read, run_write, run_python as _core_run_python
     if name in active_teammates:
         return f"队友 '{name}' 已存在"
 
@@ -147,6 +147,10 @@ def spawn_teammate_thread(name: str, role: str, prompt: str) -> str:
         def _run_write(path: str, content: str) -> str:
             return run_write(path, content, cwd=_wt_cwd())
 
+        def _run_python(code: str) -> str:
+            """s21: 队友侧的 run_python，自动适配 worktree 目录。"""
+            return _core_run_python(code, cwd=_wt_cwd())
+
         def _run_claim_task(task_id: str) -> str:
             """队友侧的 claim_task handler，用队友名作为 owner。
             s18: 认领后检查任务是否有 worktree 绑定，有则切换工作目录。"""
@@ -201,6 +205,12 @@ def spawn_teammate_thread(name: str, role: str, prompt: str) -> str:
              "input_schema": {"type": "object",
                               "properties": {"task_id": {"type": "string"}},
                               "required": ["task_id"]}},
+            # s21: 队友也需要 run_python 做复杂分析，
+            # 避免 Windows 下 python -c 多行脚本失败
+            {"name": "run_python", "description": "执行 Python 代码。写入临时文件→执行→自动清理。用于数据分析、文件统计等。",
+             "input_schema": {"type": "object",
+                              "properties": {"code": {"type": "string"}},
+                              "required": ["code"]}},
         ]
         sub_handlers = {
             "bash": _run_bash, "read_file": _run_read,
@@ -211,6 +221,7 @@ def spawn_teammate_thread(name: str, role: str, prompt: str) -> str:
             "list_tasks": _run_list_tasks,
             "claim_task": _run_claim_task,
             "complete_task": _run_complete_task,
+            "run_python": _run_python,  # s21: 安全 Python 执行
         }
 
         # s21: 首次 IDLE 不自动认领任务板上的旧任务，
