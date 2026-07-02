@@ -9,8 +9,11 @@ IDLE_POLL_INTERVAL = 5   # 空闲轮询间隔（秒）
 IDLE_TIMEOUT = 60         # 空闲超时（秒）
 def idle_poll(agent_name: str, messages: list,
               name: str, role: str,
-              worktree_context: dict | None = None) -> str:
-    """空闲轮询 60 秒。"""
+              worktree_context: dict | None = None,
+              skip_auto_claim: bool = False) -> str:
+    """空闲轮询 60 秒。
+    s21: skip_auto_claim=True 时跳过任务板扫描，
+    确保 spawn prompt 优先于任务板上残留的旧任务。"""
     from services.tasks import scan_unclaimed_tasks, claim_task  # 延迟导入
     for _ in range(IDLE_TIMEOUT // IDLE_POLL_INTERVAL):
         time.sleep(IDLE_POLL_INTERVAL)
@@ -34,7 +37,9 @@ def idle_poll(agent_name: str, messages: list,
             terminal_print(f"  \033[36m[空闲] {name} 发现收件箱消息\033[0m")
             return "work"
 
-        # ② 扫描任务板
+        # ② 扫描任务板（首次 IDLE 跳过，优先完成 spawn prompt）
+        if skip_auto_claim:
+            continue
         unclaimed = scan_unclaimed_tasks()
         if unclaimed:
             task = unclaimed[0]
@@ -208,6 +213,10 @@ def spawn_teammate_thread(name: str, role: str, prompt: str) -> str:
             "complete_task": _run_complete_task,
         }
 
+        # s21: 首次 IDLE 不自动认领任务板上的旧任务，
+        # 确保 spawn prompt 优先完成。
+        is_first_idle = True
+
         # 外层循环：WORK → IDLE 交替，直到关机或超时
         while True:
             # s17: 身份重注入 — compact_history 压缩后 messages 可能只剩
@@ -293,7 +302,10 @@ def spawn_teammate_thread(name: str, role: str, prompt: str) -> str:
                 continue
 
             # ═══ IDLE 阶段：轮询 inbox + 扫描任务板（60s） ═══
-            idle_result = idle_poll(name, messages, name, role, wt_ctx)
+            # s21: 首次 IDLE 跳过任务板扫描，优先完成 spawn prompt
+            idle_result = idle_poll(name, messages, name, role, wt_ctx,
+                                    skip_auto_claim=is_first_idle)
+            is_first_idle = False
             if idle_result == "shutdown":
                 break
             if idle_result == "timeout":
