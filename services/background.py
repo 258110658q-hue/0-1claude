@@ -12,9 +12,10 @@ def is_slow_operation(tool_name: str, tool_input: dict) -> bool:
     if tool_name != "bash":
         return False
     cmd = tool_input.get("command", "").lower()
-    slow_keywords = ["install", "build", "test", "deploy", "compile",
-                     "docker build", "pip install", "npm install",
-                     "cargo build", "pytest", "make"]
+    slow_keywords = ["pip install", "npm install", "cargo build",
+                     "docker build", "docker compose", "apt-get",
+                     "brew install", "make install", "make build",
+                     "git clone", "git lfs pull", "cmake", "bundle install"]
     return any(kw in cmd for kw in slow_keywords)
 def should_run_background(tool_name: str, tool_input: dict) -> bool:
     """LLM 显式请求优先；未指定时用启发式兜底。"""
