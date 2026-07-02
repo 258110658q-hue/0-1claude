@@ -17,11 +17,11 @@ class TestIsSlowOperation:
 
     def test_build_is_slow(self):
         from services.background import is_slow_operation
-        assert is_slow_operation("bash", {"command": "npm run build"}) is True
+        assert is_slow_operation("bash", {"command": "docker build -t myapp ."}) is True
 
     def test_test_is_slow(self):
         from services.background import is_slow_operation
-        assert is_slow_operation("bash", {"command": "pytest tests/"}) is True
+        assert is_slow_operation("bash", {"command": "pip install pytest"}) is True
 
     def test_echo_is_not_slow(self):
         from services.background import is_slow_operation
