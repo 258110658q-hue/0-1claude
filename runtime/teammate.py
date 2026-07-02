@@ -1,8 +1,8 @@
 """队友自治 Agent — s17"""
 import json, time, threading, re
 from pathlib import Path
-from config import safe_print,  client, PRIMARY_MODEL, WORKDIR, WORKTREES_DIR
-from core.utils import has_tool_use, call_tool_handler
+from config import client, PRIMARY_MODEL, WORKDIR, WORKTREES_DIR
+from core.utils import has_tool_use, call_tool_handler, terminal_print
 from runtime.bus import BUS, active_teammates
 
 IDLE_POLL_INTERVAL = 5   # 空闲轮询间隔（秒）
@@ -24,14 +24,14 @@ def idle_poll(agent_name: str, messages: list,
                     req_id = msg.get("metadata", {}).get("request_id", "")
                     BUS.send(name, "lead", "正在收尾关机。", "shutdown_response",
                              {"request_id": req_id, "approve": True})
-                    safe_print(f"  \033[35m[协议] {name} 在 IDLE 中同意关机 "
+                    terminal_print(f"  \033[35m[协议] {name} 在 IDLE 中同意关机 "
                           f"({req_id})\033[0m")
                     return "shutdown"
 
             # 普通消息 → 注入上下文，回到 WORK
             messages.append({"role": "user",
                 "content": "<inbox>" + json.dumps(inbox, ensure_ascii=False) + "</inbox>"})
-            safe_print(f"  \033[36m[空闲] {name} 发现收件箱消息\033[0m")
+            terminal_print(f"  \033[36m[空闲] {name} 发现收件箱消息\033[0m")
             return "work"
 
         # ② 扫描任务板
@@ -51,13 +51,13 @@ def idle_poll(agent_name: str, messages: list,
                 messages.append({"role": "user",
                     "content": f"<auto-claimed>任务 {task['id']}: "
                                f"{task['subject']}{wt_info}</auto-claimed>"})
-                safe_print(f"  \033[32m[空闲] {name} 自动认领: "
+                terminal_print(f"  \033[32m[空闲] {name} 自动认领: "
                       f"{task['subject']}\033[0m")
                 return "work"
-            safe_print(f"  \033[33m[空闲] {name} 认领失败: "
+            terminal_print(f"  \033[33m[空闲] {name} 认领失败: "
                   f"{result}\033[0m")
 
-    safe_print(f"  \033[31m[空闲] {name} 超时 ({IDLE_TIMEOUT}s)，将关机\033[0m")
+    terminal_print(f"  \033[31m[空闲] {name} 超时 ({IDLE_TIMEOUT}s)，将关机\033[0m")
     return "timeout"
 def spawn_teammate_thread(name: str, role: str, prompt: str) -> str:
     """在后台 daemon 线程里启动自治队友 Agent。"""
@@ -86,7 +86,7 @@ def spawn_teammate_thread(name: str, role: str, prompt: str) -> str:
         if msg_type == "shutdown_request":
             BUS.send(name, "lead", "正在收尾关机。", "shutdown_response",
                      {"request_id": req_id, "approve": True})
-            safe_print(f"  \033[35m[协议] {name} 同意关机 ({req_id})\033[0m")
+            terminal_print(f"  \033[35m[协议] {name} 同意关机 ({req_id})\033[0m")
             return True
 
         if msg_type == "plan_approval_response":
@@ -248,7 +248,7 @@ def spawn_teammate_thread(name: str, role: str, prompt: str) -> str:
                         model=PRIMARY_MODEL, system=system, messages=messages[-20:],
                         tools=sub_tools, max_tokens=8000)
                 except Exception as e:
-                    safe_print(f"  \033[31m[队友错误] {name}: {type(e).__name__}: {e}\033[0m")
+                    terminal_print(f"  \033[31m[队友错误] {name}: {type(e).__name__}: {e}\033[0m")
                     BUS.send(name, "lead",
                              f"[错误] API 调用失败: {type(e).__name__}", "message")
                     should_shutdown = True
@@ -313,9 +313,9 @@ def spawn_teammate_thread(name: str, role: str, prompt: str) -> str:
                 break
         BUS.send(name, "lead", summary, "result")
         active_teammates.pop(name, None)
-        safe_print(f"  \033[32m[队友] {name} 已关机\033[0m")
+        terminal_print(f"  \033[32m[队友] {name} 已关机\033[0m")
 
     active_teammates[name] = True
     threading.Thread(target=run, daemon=True).start()
-    safe_print(f"  \033[36m[队友] {name} 已启动，角色: {role}（自治模式）\033[0m")
+    terminal_print(f"  \033[36m[队友] {name} 已启动，角色: {role}（自治模式）\033[0m")
     return f"队友 '{name}' 已启动，角色: {role}（自治模式，可自行认领任务）"
