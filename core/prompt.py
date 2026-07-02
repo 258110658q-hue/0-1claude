@@ -5,7 +5,7 @@ from config import WORKDIR, MEMORY_INDEX
 
 PROMPT_SECTIONS = {
     "identity": f"你是在 {WORKDIR} 工作的编程智能体。",
-    "memory_instruction": "相关记忆会在每轮自动注入。当用户说'记住'或表达明确偏好时，提取为记忆。",
+    "memory_instruction": "当用户说'记住'、'别忘了'、'以后都'时，调用 remember 工具保存事实。不要搜索文件，不要做其他操作。已保存的记忆会在每轮自动注入。",
     "skills_instruction": "需要时使用 load_skill 获取技能的完整内容。",
     "mcp_instruction": "使用 connect_mcp 连接外部 MCP server。连接后 MCP 工具以 mcp__{server}__{tool} 格式可用。",
 }

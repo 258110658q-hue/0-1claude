@@ -29,6 +29,19 @@ def write_memory_file(name: str, mem_type: str, description: str, body: str):
     )
     _rebuild_index()
     return filepath
+
+def run_remember(fact: str) -> str:
+    """s21: 显式记忆工具 — 供 LLM 在用户说"记住"时主动调用。
+    直接写入记忆文件，绕过 LLM 侧查询的内存提取流程。"""
+    name = fact[:50].replace("\n", " ")
+    write_memory_file(
+        name=name,
+        mem_type="user",
+        description=name,
+        body=fact)
+    safe_print(f"  \033[32m[记忆] 已保存: {name[:60]}\033[0m")
+    return f"已记住: {fact}"
+
 def _rebuild_index():
     """扫描 .memory/ 下所有 .md 文件，重建 MEMORY.md 索引。"""
     MEMORY_DIR.mkdir(exist_ok=True)

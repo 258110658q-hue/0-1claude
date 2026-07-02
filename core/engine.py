@@ -150,6 +150,16 @@ def agent_loop(messages: list, context: dict):
 
         # s20: 用 has_tool_use 替代 stop_reason
         if not has_tool_use(response.content):
+            # s21: 空响应兜底 — DeepSeek 等弱模型在上下文混乱时可能返回空 content
+            text = extract_text(response.content).strip()
+            if not text:
+                messages[-1] = {"role": "assistant", "content": [
+                    {"type": "text", "text": "抱歉，模型暂时无法响应，请重试。"}
+                ]}
+                terminal_print("  \033[31m[错误] 模型返回空响应，请重试\033[0m")
+                extract_memories(pre_compress)
+                consolidate_memories()
+                return context
             extract_memories(pre_compress)
             consolidate_memories()
             force = trigger_hooks("Stop", messages)
@@ -218,6 +228,7 @@ def agent_loop(messages: list, context: dict):
 # s14 用 cron_scheduler_loop + cron_queue + queue_processor_loop 三层解耦。
 # s20 简化为单一 cron_autorun_loop：每秒检查一次，有触发就拉起 agent_loop。
 def cron_autorun_loop(history: list, context: dict):
+    """Cron 自动运行循环：每秒轮询 cron 队列，有触发则拉起 agent_loop 执行。"""
     from services.cron import consume_cron_queue, agent_lock  # 延迟导入
     from core.prompt import update_context
     import time
