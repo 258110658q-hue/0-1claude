@@ -54,6 +54,32 @@ def run_bash(command: str, run_in_background: bool = False,
         return out[:50000] if out else "（无输出）"
     except subprocess.TimeoutExpired:
         return "错误: 命令超时 (120s)"
+
+def run_python(code: str, cwd: Path = None) -> str:
+    """s21: 安全执行 Python 代码 — 写入临时文件 → 执行 → 清理。
+    解决 Windows cmd.exe 下 python -c 多行脚本因引号嵌套失败的问题。"""
+    import random
+    tmp_dir = (cwd or WORKDIR) / ".runtime" / "tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    script_path = tmp_dir / f"run_{random.randint(0, 99999):05d}.py"
+    try:
+        script_path.write_text(code, encoding="utf-8")
+        r = subprocess.run(
+            ["python", str(script_path)],
+            cwd=cwd or WORKDIR,
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+            timeout=120)
+        out = (r.stdout + r.stderr).strip()
+        return out[:50000] if out else "（无输出）"
+    except subprocess.TimeoutExpired:
+        return "错误: 脚本执行超时 (120s)"
+    finally:
+        try:
+            script_path.unlink()
+        except Exception:
+            pass
+
 def run_read(path: str, limit: int | None = None, cwd: Path = None) -> str:
     """s18: 可选 cwd 参数，队友在 worktree 下读取。"""
     try:

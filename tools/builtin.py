@@ -113,6 +113,18 @@ BUILTIN_TOOLS = [
      "input_schema": {"type": "object",
                       "properties": {"name": {"type": "string"}},
                       "required": ["name"]}},
+    # s21: 显式记忆工具 — 让 DeepSeek 等弱模型在用户说"记住"时有具体工具可调
+    {"name": "remember", "description": "将用户偏好、约束或重要事实保存到持久记忆中。当用户说'记住'、'别忘了'、'以后都'时调用此工具。",
+     "input_schema": {"type": "object",
+                      "properties": {"fact": {"type": "string",
+                                              "description": "要记住的事实，一句话描述"}},
+                      "required": ["fact"]}},
+    # s21: run_python — 安全执行 Python 脚本，自动写临时文件并清理
+    {"name": "run_python", "description": "执行 Python 代码。代码写入临时文件→执行→自动清理。用于替代 python -c（Windows 下多行会失败）。",
+     "input_schema": {"type": "object",
+                      "properties": {"code": {"type": "string",
+                                              "description": "要执行的 Python 代码"}},
+                      "required": ["code"]}},
 ]
 SUB_TOOLS = [
     {"name": "bash", "description": "执行 shell 命令。慢操作可设 run_in_background 放后台。",
@@ -150,6 +162,11 @@ SUB_TOOLS = [
      "input_schema": {"type": "object",
                       "properties": {"task_id": {"type": "string"}},
                       "required": ["task_id"]}},
+    # s21: 子 Agent 也需要 run_python 来执行复杂分析脚本
+    {"name": "run_python", "description": "执行 Python 代码。写入临时文件→执行→自动清理。用于数据分析、文件统计等。",
+     "input_schema": {"type": "object",
+                      "properties": {"code": {"type": "string"}},
+                      "required": ["code"]}},
 ]
 
 
@@ -169,6 +186,8 @@ def init_builtin_handlers():
                             run_request_shutdown, run_request_plan, run_review_plan,
                             run_create_worktree, run_remove_worktree, run_keep_worktree,
                             run_connect_mcp)
+    from services.memory import run_remember  # s21: 显式记忆工具
+    from core.utils import run_python  # s21: 安全 Python 执行工具
     BUILTIN_HANDLERS.update({
         "bash": run_bash, "read_file": run_read, "write_file": run_write,
         "edit_file": run_edit, "glob": run_find, "todo_write": run_todo_write,
@@ -185,12 +204,14 @@ def init_builtin_handlers():
         "create_worktree": run_create_worktree, "remove_worktree": run_remove_worktree,
         "keep_worktree": run_keep_worktree,
         "connect_mcp": run_connect_mcp,
+        "remember": run_remember,  # s21: 显式记忆工具
+        "run_python": run_python,  # s21: 安全 Python 执行工具
     })
 
 
 def init_sub_handlers():
     """延迟初始化 SUB_HANDLERS：子 Agent 受限 handler 映射"""
-    from core.utils import run_bash, run_read, run_write, run_edit, run_find
+    from core.utils import run_bash, run_read, run_write, run_edit, run_find, run_python
     from services.tasks import run_create_task, run_list_tasks, run_get_task, run_claim_task, run_complete_task
     SUB_HANDLERS.update({
         "bash": run_bash, "read_file": run_read, "write_file": run_write,
@@ -198,4 +219,5 @@ def init_sub_handlers():
         "create_task": run_create_task, "list_tasks": run_list_tasks,
         "get_task": run_get_task, "claim_task": run_claim_task,
         "complete_task": run_complete_task,
+        "run_python": run_python,  # s21: 安全 Python 执行
     })
