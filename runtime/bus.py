@@ -1,6 +1,7 @@
 """MessageBus — s15"""
 import json, time
-from config import safe_print, RUNTIME_DIR
+from config import RUNTIME_DIR
+from core.utils import terminal_print  # s21: 后台线程消息需要恢复 s20>> 提示符
 
 MAILBOX_DIR = RUNTIME_DIR / "mailboxes"
 MAILBOX_DIR.mkdir(exist_ok=True)
@@ -16,8 +17,8 @@ class MessageBus:
         inbox = MAILBOX_DIR / f"{to_agent}.jsonl"
         with open(inbox, "a", encoding="utf-8") as f:
             f.write(json.dumps(msg, ensure_ascii=False) + "\n")
-        safe_print(f"  \033[33m[消息总线] {from_agent} → {to_agent}: "
-              f"{content[:50]}\033[0m")
+        terminal_print(f"  \033[33m[消息总线] {from_agent} → {to_agent}: "
+                      f"{content[:50]}\033[0m")
 
     def read_inbox(self, agent: str) -> list[dict]:
         """读取并清空收件箱（消费式）。"""
