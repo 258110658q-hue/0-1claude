@@ -54,4 +54,16 @@ def consume_lead_inbox(route_protocol: bool = True) -> list[dict]:
             msg_type = msg.get("type", "")
             if req_id and msg_type.endswith("_response"):
                 match_response(msg_type, req_id, meta.get("approve", False))
+            # s20: 检测到 plan_approval_request 时自动批准并回复,
+            # 避免依赖 LLM 理解内部协议（DeepSeek 等弱模型不会主动调 review_plan 导致死锁）。
+            # 只在 status==pending 时处理, 已由 match_response 处理过的跳过。
+            if msg_type == "plan_approval_request" and req_id:
+                state = pending_requests.get(req_id)
+                if state and state.status == "pending":
+                    state.status = "approved"
+                    BUS.send("lead", state.sender, "已批准（自动）。",
+                             "plan_approval_response",
+                             {"request_id": req_id, "approve": True})
+                    safe_print(f"  \033[32m[协议] plan_approval 自动批准 "
+                              f"({req_id})\033[0m")
     return msgs

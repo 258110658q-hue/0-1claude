@@ -30,6 +30,18 @@ def inject_background_notifications(messages: list):
     if notes:
         messages.append({"role": "user", "content": [
             {"type": "text", "text": note} for note in notes]})
+
+def inject_teammate_inbox(messages: list):
+    """将队友发来的消息自动注入 messages（避免消息躺在收件箱无人查看）。"""
+    from runtime.protocol import consume_lead_inbox  # 延迟导入
+    msgs = consume_lead_inbox(route_protocol=True)
+    if msgs:
+        text = "<teammate_inbox>队友发来消息：\n"
+        for m in msgs:
+            text += f"  [{m['from']}] {str(m['content'])[:600]}\n"
+        text += "</teammate_inbox>"
+        messages.append({"role": "user", "content": text})
+
 def call_llm(messages: list, context: dict, tools: list,
              state, max_tokens: int):
     """LLM 调用包装：组装 system prompt + with_retry 错误恢复。"""
@@ -72,6 +84,9 @@ def agent_loop(messages: list, context: dict):
 
         # s13: 注入已完成的后台任务通知
         inject_background_notifications(messages)
+
+        # s20: 自动注入队友消息（避免消息躺在收件箱无人查看）
+        inject_teammate_inbox(messages)
 
         # s05: nag 提醒
         if rounds_since_todo >= 3 and messages:
