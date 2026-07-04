@@ -1,5 +1,4 @@
 """config.py 测试 — 全局配置"""
-import pytest
 import sys
 from pathlib import Path
 

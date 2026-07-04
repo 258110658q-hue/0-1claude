@@ -1,5 +1,4 @@
 """runtime/protocol.py 测试 — ProtocolState, new_request_id, match_response, consume_lead_inbox"""
-import pytest
 import sys
 from pathlib import Path
 

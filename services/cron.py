@@ -97,7 +97,7 @@ def validate_cron(cron_expr: str) -> str | None:
         return f"需要 5 个字段，实际 {len(fields)} 个"
     bounds = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 6)]
     names = ["分钟", "小时", "日", "月", "星期"]
-    for i, (field, (lo, hi), name) in enumerate(zip(fields, bounds, names)):
+    for _i, (field, (lo, hi), name) in enumerate(zip(fields, bounds, names, strict=True)):
         err = _validate_cron_field(field, lo, hi)
         if err:
             return f"{name}: {err}"

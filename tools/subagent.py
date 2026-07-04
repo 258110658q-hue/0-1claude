@@ -1,6 +1,6 @@
 """子 Agent 系统 — s06"""
 from config import safe_print,  client, PRIMARY_MODEL
-from core.utils import extract_text, has_tool_use, call_tool_handler
+from core.utils import extract_text
 from core.prompt import SUB_SYSTEM
 
 def spawn_subagent(description: str) -> str:

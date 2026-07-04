@@ -1,5 +1,5 @@
 """团队/worktree/MCP handler — 全部延迟导入避免循环依赖"""
-from config import safe_print,  WORKDIR
+from config import safe_print
 
 def run_spawn_teammate(name: str, role: str, prompt: str) -> str:
     from runtime.teammate import spawn_teammate_thread

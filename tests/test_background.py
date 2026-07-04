@@ -1,5 +1,4 @@
 """services/background.py 测试 — 慢操作判断"""
-import pytest
 import sys
 from pathlib import Path
 

@@ -1,5 +1,5 @@
 """Worktree 隔离系统 — s18"""
-import json, subprocess, time, re
+import json, subprocess, time
 from pathlib import Path
 from config import safe_print,  WORKDIR, WORKTREES_DIR, VALID_WT_NAME
 
@@ -34,7 +34,6 @@ def log_event(event_type: str, worktree_name: str, task_id: str = ""):
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
 def create_worktree(name: str, task_id: str = "") -> str:
     """创建 git worktree + 独立分支。"""
-    from services.tasks import load_task  # 延迟导入
     err = validate_worktree_name(name)
     if err:
         return f"错误: {err}"
@@ -62,11 +61,11 @@ def _count_worktree_changes(path: Path) -> tuple[int, int]:
         r1 = subprocess.run(["git", "status", "--porcelain"],
                             cwd=path, capture_output=True, text=True,
                             encoding="utf-8", errors="replace", timeout=10)
-        files = len([l for l in r1.stdout.strip().splitlines() if l.strip()])
+        files = len([line for line in r1.stdout.strip().splitlines() if line.strip()])
         r2 = subprocess.run(["git", "log", "@{push}..HEAD", "--oneline"],
                             cwd=path, capture_output=True, text=True,
                             encoding="utf-8", errors="replace", timeout=10)
-        commits = len([l for l in r2.stdout.strip().splitlines() if l.strip()])
+        commits = len([line for line in r2.stdout.strip().splitlines() if line.strip()])
         return files, commits
     except Exception:
         return -1, -1

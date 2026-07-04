@@ -1,7 +1,12 @@
 """通用工具函数 — terminal_print, safe_path, run_bash/read/write/edit/find, extract_text, has_tool_use, call_tool_handler, 压缩辅助函数"""
 import subprocess, threading, ast, json
 from pathlib import Path
-from config import WORKDIR, READLINE_AVAILABLE, CURRENT_TODOS
+from config import WORKDIR, READLINE_AVAILABLE
+
+try:
+    import readline
+except ImportError:
+    readline = None
 
 # ── s20: terminal_print — 后台线程输出不打断用户输入 ──────
 def terminal_print(text: str):

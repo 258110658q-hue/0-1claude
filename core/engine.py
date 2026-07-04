@@ -1,6 +1,6 @@
 """核心引擎 — agent_loop + cron_autorun_loop"""
 import time
-from config import safe_print,  WORKDIR, CURRENT_TODOS, client
+from config import safe_print,  client
 from core.utils import has_tool_use, call_tool_handler, terminal_print, extract_text
 from core.compression import tool_result_budget, snip_compact, micro_compact, compact_history, reactive_compact, CONTEXT_LIMIT, estimate_size
 from core.recovery import RecoveryState, DEFAULT_MAX_TOKENS, ESCALATED_MAX_TOKENS, MAX_RECOVERY_RETRIES, CONTINUATION_PROMPT, with_retry, is_prompt_too_long_error
@@ -65,7 +65,7 @@ def agent_loop(messages: list, context: dict):
     # s20: 延迟导入避免 core <-> services/tools/runtime 循环依赖
     from services.memory import load_memories, extract_memories, consolidate_memories
     from services.cron import consume_cron_queue
-    from services.background import collect_background_results, should_run_background, start_background_task
+    from services.background import should_run_background, start_background_task
     from tools.mcp import assemble_tool_pool
     from runtime.hooks import trigger_hooks
     tools, handlers = assemble_tool_pool()
@@ -231,7 +231,6 @@ def cron_autorun_loop(history: list, context: dict):
     """Cron 自动运行循环：每秒轮询 cron 队列，有触发则拉起 agent_loop 执行。"""
     from services.cron import consume_cron_queue, agent_lock  # 延迟导入
     from core.prompt import update_context
-    import time
     while True:
         time.sleep(1)
         fired = consume_cron_queue()

@@ -1,5 +1,4 @@
 """services/tasks.py 测试 — Task 数据类, CRUD, 依赖管理, 扫描认领"""
-import pytest
 import sys
 from pathlib import Path
 

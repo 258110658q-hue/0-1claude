@@ -1,0 +1,62 @@
+[project]
+name = "ai-agent-harness"
+version = "1.0.0"
+description = "从零构建的 AI 编程智能体运行时引擎 — Claude Code Agent Harness 架构复现"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Your Name" }
+]
+keywords = ["ai-agent", "claude-code", "agent-harness", "llm", "coding-agent"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+dependencies = [
+    "anthropic>=0.100.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.8.0",
+]
+
+[tool.ruff]
+exclude = ["learn-claude-code", "venv", ".runtime", ".pytest_cache"]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes (unused imports, undefined names — real bugs)
+    "W",     # pycodestyle warnings
+    "B",     # flake8-bugbear (common gotchas)
+]
+ignore = [
+    "E501",  # line too long — 中文注释天然长
+    "F403",  # import * — 项目模式就是 from module import *
+    "F405",  # import * usage — 同上
+    "E401",  # multiple imports on one line — 项目代码风格
+    "F541",  # f-string missing placeholders — 无害
+    "E402",  # import not at top — 本地导入是有意为之
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # __init__.py 的导入就是用来再导出的
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "-v --tb=short --ignore=learn-claude-code"

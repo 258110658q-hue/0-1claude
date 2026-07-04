@@ -1,7 +1,7 @@
 """队友自治 Agent — s17"""
 import json, time, threading, re
 from pathlib import Path
-from config import client, PRIMARY_MODEL, WORKDIR, WORKTREES_DIR
+from config import client, PRIMARY_MODEL, WORKTREES_DIR
 from core.utils import has_tool_use, call_tool_handler, terminal_print
 from runtime.bus import BUS, active_teammates
 

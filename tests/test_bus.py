@@ -1,5 +1,4 @@
 """runtime/bus.py 测试 — MessageBus send/read"""
-import pytest
 import sys
 from pathlib import Path
 
@@ -8,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 class TestMessageBus:
     def test_send_and_read(self, temp_workdir):
-        from runtime.bus import MessageBus, MAILBOX_DIR
+        from runtime.bus import MessageBus
         bus = MessageBus()
         bus.send("lead", "alice", "hello", "message")
         msgs = bus.read_inbox("alice")

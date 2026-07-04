@@ -1,5 +1,4 @@
 """services/skills.py 测试 — 技能扫描/加载"""
-import pytest
 import sys
 from pathlib import Path
 

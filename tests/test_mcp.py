@@ -1,5 +1,4 @@
 """tools/mcp.py 测试 — MCPClient, normalize_mcp_name, mock servers, connect_mcp, assemble_tool_pool"""
-import pytest
 import sys
 from pathlib import Path
 

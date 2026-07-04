@@ -1,7 +1,7 @@
 """上下文压缩管线 — s08"""
 import json, time
 from config import safe_print,  TRANSCRIPT_DIR, TOOL_RESULTS_DIR, client, PRIMARY_MODEL
-from core.utils import estimate_size, _block_type, _message_has_tool_use, _is_tool_result_message, extract_text
+from core.utils import _message_has_tool_use, _is_tool_result_message
 
 CONTEXT_LIMIT = 50000        # 字符数阈值，超过则触发 L4 自动摘要
 KEEP_RECENT = 3              # L2 micro: 保留最近 N 条 tool_result 的完整内容

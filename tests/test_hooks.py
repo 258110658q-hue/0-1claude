@@ -1,5 +1,4 @@
 """runtime/hooks.py 测试 — 钩子注册, 触发, 权限检查"""
-import pytest
 import sys
 from pathlib import Path
 

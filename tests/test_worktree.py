@@ -1,5 +1,4 @@
 """runtime/worktree.py 测试 — 名称校验, 变更统计"""
-import pytest
 import sys
 from pathlib import Path
 

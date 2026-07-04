@@ -1,6 +1,5 @@
 """System Prompt 组装"""
 import json
-from datetime import datetime
 from config import WORKDIR, MEMORY_INDEX
 
 PROMPT_SECTIONS = {

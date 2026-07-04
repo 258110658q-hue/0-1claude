@@ -1625,10 +1625,10 @@ def _count_worktree_changes(path: Path) -> tuple[int, int]:
     try:
         r1 = subprocess.run(["git", "status", "--porcelain"],
                             cwd=path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
-        files = len([l for l in r1.stdout.strip().splitlines() if l.strip()])
+        files = len([line for line in r1.stdout.strip().splitlines() if line.strip()])
         r2 = subprocess.run(["git", "log", "@{push}..HEAD", "--oneline"],
                             cwd=path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
-        commits = len([l for l in r2.stdout.strip().splitlines() if l.strip()])
+        commits = len([line for line in r2.stdout.strip().splitlines() if line.strip()])
         return files, commits
     except Exception:
         return -1, -1
@@ -1859,8 +1859,8 @@ def validate_cron(cron_expr: str) -> str | None:
         return f"需要 5 个字段，实际 {len(fields)} 个"
     bounds = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 6)]
     names = ["分钟", "小时", "日", "月", "星期"]
-    for i, (field, (lo, hi), name) in enumerate(zip(fields, bounds, names)):
-        err = _validate_cron_field(field, lo, hi)
+    for _i, (fld, (lo, hi), name) in enumerate(zip(fields, bounds, names, strict=True)):
+        err = _validate_cron_field(fld, lo, hi)
         if err:
             return f"{name}: {err}"
     return None
