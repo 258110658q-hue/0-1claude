@@ -1,0 +1,4 @@
+# Web API 依赖（FastAPI 服务层，独立于项目核心的极简依赖）
+# 安装：在 venv 中执行  pip install -r api/requirements.txt
+fastapi>=0.110
+uvicorn>=0.27

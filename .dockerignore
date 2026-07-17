@@ -1,0 +1,37 @@
+# ===== 版本控制 / 构建缓存（不进镜像）=====
+.git
+.gitignore
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# ===== 虚拟环境与本地依赖 =====
+venv/
+.venv/
+
+# ===== 密钥（绝不进镜像！靠 --env-file 或 -e 传入）=====
+.env
+.env.*
+
+# ===== 外部参考/学习项目（巨大且非应用代码，用户已说明忽略）=====
+learn-claude-code/
+
+# ===== 前端（后端镜像不需要；前端会单独容器化）=====
+frontend/
+node_modules/
+
+# ===== IDE / 工具 / OS =====
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ===== 文档/草稿（非运行必需）=====
+PROJECT_OVERVIEW.md
+RESUME_DRAFT.md
+README_PROMPT.md
+SPLIT_PROMPT.md
+SPLIT_PROMPT_B.md
+TEST_PLAN.md

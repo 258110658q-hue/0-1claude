@@ -59,12 +59,24 @@ jobs:
         uses: astral-sh/ruff-action@v1
 
   # ═══════════════════════════════════════════════════════════════
-  # Job 3: 发布（打 tag 时自动创建 GitHub Release）
+  # Job 3: 容器化验证（构建镜像，确认 Dockerfile 可被正确打包）
+  # ═══════════════════════════════════════════════════════════════
+  docker:
+    name: Docker — build image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t agent-0-1claude:ci .
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 4: 发布（打 tag 时自动创建 GitHub Release）
   # ═══════════════════════════════════════════════════════════════
   publish:
     name: Publish — GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [test, lint]
+    needs: [test, lint, docker]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
