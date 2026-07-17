@@ -1,12 +1,16 @@
 """核心引擎 — agent_loop + cron_autorun_loop"""
 import time
 from config import safe_print,  client
-from core.utils import has_tool_use, call_tool_handler, terminal_print, extract_text
-from core.compression import tool_result_budget, snip_compact, micro_compact, compact_history, reactive_compact, CONTEXT_LIMIT, estimate_size
+from core.utils import has_tool_use, call_tool_handler, terminal_print, extract_text, estimate_size
+from core.compression import tool_result_budget, snip_compact, micro_compact, compact_history, reactive_compact, CONTEXT_LIMIT
 from core.recovery import RecoveryState, DEFAULT_MAX_TOKENS, ESCALATED_MAX_TOKENS, MAX_RECOVERY_RETRIES, CONTINUATION_PROMPT, with_retry, is_prompt_too_long_error
 from core.prompt import assemble_system_prompt, update_context
 
 rounds_since_todo = 0  # s05: 记录连续多少轮没有更新 todo
+
+# s20-web: 可选事件钩子。Web/UI 通过 per-request 的 sink 接收结构化事件；
+# 默认为 None，CLI 模式完全不受影响（所有 emit 处都有 `if sink` 守卫）。
+EVENT_SINK = None
 def prepare_context(messages: list) -> list:
     """LLM 调用前的上下文准备管线：L3→L1→L2→阈值?→L4"""
     messages[:] = tool_result_budget(messages)    # L3: 大结果落盘
@@ -59,9 +63,15 @@ def print_turn_assistants(messages: list, turn_start: int):
         for block in msg.get("content", []):
             if getattr(block, "type", None) == "text":
                 terminal_print(block.text)
-def agent_loop(messages: list, context: dict):
-    """智能体循环: 注入记忆 → 压缩 → 执行 → 提取记忆。"""
+def agent_loop(messages: list, context: dict, sink=None):
+    """智能体循环: 注入记忆 → 压缩 → 执行 → 提取记忆。
+
+    sink: 可选事件回调（Web UI 用），接收 dict 事件：
+          assistant_text / tool_use / tool_result / error。
+          默认取全局 EVENT_SINK；两者皆 None 时行为不变（CLI 零影响）。
+    """
     global rounds_since_todo
+    sink = sink or EVENT_SINK
     # s20: 延迟导入避免 core <-> services/tools/runtime 循环依赖
     from services.memory import load_memories, extract_memories, consolidate_memories
     from services.cron import consume_cron_queue
@@ -128,8 +138,11 @@ def agent_loop(messages: list, context: dict):
                 state.has_attempted_reactive_compact = True
                 continue
             name = type(e).__name__
+            msg = f"[错误] {name}: {str(e)[:200]}"
             messages.append({"role": "assistant", "content": [
-                {"type": "text", "text": f"[错误] {name}: {str(e)[:200]}"}]})
+                {"type": "text", "text": msg}]})
+            if sink:
+                sink({"type": "error", "message": msg})
             return context
 
         # ── max_tokens 截断恢复 ──
@@ -148,6 +161,17 @@ def agent_loop(messages: list, context: dict):
         # 正常完成
         messages.append({"role": "assistant", "content": response.content})
 
+        # s20-web: 把本轮助手内容转为结构化事件推给前端
+        # （文本先发；工具调用在下方执行前发出，便于 UI 即时展示）
+        for _block in response.content:
+            if getattr(_block, "type", None) == "text" and _block.text.strip():
+                if sink:
+                    sink({"type": "assistant_text", "text": _block.text})
+            elif getattr(_block, "type", None) == "tool_use":
+                if sink:
+                    sink({"type": "tool_use", "id": _block.id,
+                          "name": _block.name, "input": _block.input})
+
         # s20: 用 has_tool_use 替代 stop_reason
         if not has_tool_use(response.content):
             # s21: 空响应兜底 — DeepSeek 等弱模型在上下文混乱时可能返回空 content
@@ -156,6 +180,9 @@ def agent_loop(messages: list, context: dict):
                 messages[-1] = {"role": "assistant", "content": [
                     {"type": "text", "text": "抱歉，模型暂时无法响应，请重试。"}
                 ]}
+                if sink:
+                    sink({"type": "assistant_text",
+                          "text": "抱歉，模型暂时无法响应，请重试。"})
                 terminal_print("  \033[31m[错误] 模型返回空响应，请重试\033[0m")
                 extract_memories(pre_compress)
                 consolidate_memories()
@@ -182,6 +209,9 @@ def agent_loop(messages: list, context: dict):
                 messages.append({"role": "user",
                                  "content": "[已压缩。继续基于摘要工作。]"})
                 compacted_now = True
+                if sink:
+                    sink({"type": "tool_result", "id": block.id,
+                          "name": "compact", "output": "[上下文已压缩]"})
                 break
 
             # 权限钩子
@@ -189,6 +219,9 @@ def agent_loop(messages: list, context: dict):
             if blocked:
                 results.append({"type": "tool_result", "tool_use_id": block.id,
                                 "content": str(blocked)})
+                if sink:
+                    sink({"type": "tool_result", "id": block.id,
+                          "name": block.name, "output": str(blocked)[:4000]})
                 continue
 
             # 后台任务分叉
@@ -198,6 +231,9 @@ def agent_loop(messages: list, context: dict):
                           "完成后会以通知形式返回结果。")
                 results.append({"type": "tool_result",
                                 "tool_use_id": block.id, "content": output})
+                if sink:
+                    sink({"type": "tool_result", "id": block.id,
+                          "name": block.name, "output": output})
                 continue
 
             # 同步执行
@@ -212,6 +248,9 @@ def agent_loop(messages: list, context: dict):
 
             results.append({"type": "tool_result",
                             "tool_use_id": block.id, "content": output})
+            if sink:
+                sink({"type": "tool_result", "id": block.id,
+                      "name": block.name, "output": str(output)[:4000]})
 
         if compacted_now:
             continue

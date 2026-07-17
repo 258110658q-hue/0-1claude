@@ -22,8 +22,17 @@ learn-claude-code/
 .vscode/
 .idea/
 
+# 项目介绍/简历草稿（不上传）
+PROJECT_OVERVIEW.md
+RESUME_DRAFT.md
+
 # Claude Code
 .claude/
+
+# Node / 前端（frontend/ 是 Vue 项目）
+node_modules/
+frontend/dist/
+frontend/node_modules/
 
 # OS
 .DS_Store
